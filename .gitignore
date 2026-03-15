@@ -212,6 +212,8 @@ workspace/**/output_sub/*.txt
 # Judge-based workflow artifacts
 state/round.json
 state/build/
+state/run/
+state/tt_*/
 problems/**/tests/*.in
 problems/**/tests/*.out
 .cursorignore
