@@ -16,6 +16,9 @@ WORKSPACE_DIR="$ROOT/workspace"
 STATE_DIR="$ROOT/state"
 HISTORY_DIR="$ROOT/history"
 
+export PROBLEMS_DIR
+export WORKSPACE_DIR
+
 COUNT=""
 TESTS=20
 
@@ -48,7 +51,6 @@ mkdir -p "$WORKSPACE_DIR" "$STATE_DIR" "$HISTORY_DIR"
 "$ROOT/judge/clean.sh" >/dev/null || true
 
 # Select random problems
-export PROBLEMS_DIR
 export COUNT
 
 SELECTED_JSON="$($PYTHON_BIN "${PYTHON_ARGS[@]}" - <<'PY'
@@ -118,12 +120,43 @@ while IFS= read -r pid; do
   idx=$((idx+1))
   "$ROOT/judge/gen_tests.sh" "$pid" --tests "$TESTS"
 
-  # Copy only buggy code into a flat workspace file
-  if [[ -f "$PROBLEMS_DIR/$pid/buggy.cpp" ]]; then
-    cp "$PROBLEMS_DIR/$pid/buggy.cpp" "$WORKSPACE_DIR/$pid.cpp"
-  else
-    : > "$WORKSPACE_DIR/$pid.cpp"
-  fi
+  # Copy buggy code into a flat workspace file, but prefix the statement as comments.
+  # This keeps the UX: open workspace/<id>.cpp and you see the problem statement first.
+  export PID="$pid"
+  "$PYTHON_BIN" "${PYTHON_ARGS[@]}" - <<'PY'
+import os
+from pathlib import Path
+
+problems_dir = Path(os.environ["PROBLEMS_DIR"])
+workspace_dir = Path(os.environ["WORKSPACE_DIR"])
+pid = os.environ["PID"]
+
+stmt_path = problems_dir / pid / "statement.txt"
+buggy_path = problems_dir / pid / "buggy.cpp"
+out_path = workspace_dir / f"{pid}.cpp"
+tmp_path = out_path.with_suffix(out_path.suffix + ".tmp")
+
+def read_text(path: Path) -> str:
+    try:
+        return path.read_text(encoding="utf-8")
+    except Exception:
+        return path.read_text(encoding="utf-8", errors="replace") if path.exists() else ""
+
+statement = read_text(stmt_path).rstrip("\n")
+buggy = read_text(buggy_path)
+
+parts: list[str] = []
+if statement.strip():
+    parts.append(f"// ===== STATEMENT ({pid}) =====\n")
+    for line in statement.splitlines():
+        parts.append("// " + line + "\n")
+    parts.append("// ===== END STATEMENT =====\n\n")
+
+parts.append(buggy)
+
+tmp_path.write_text("".join(parts), encoding="utf-8", errors="replace")
+os.replace(tmp_path, out_path)
+PY
 done <<< "$SELECTED_IDS"
 
 # Create round.json
