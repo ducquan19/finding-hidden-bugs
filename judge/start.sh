@@ -44,8 +44,8 @@ fi
 
 mkdir -p "$WORKSPACE_DIR" "$STATE_DIR" "$HISTORY_DIR"
 
-# Clean workspace from previous rounds (flat layout)
-rm -rf "$WORKSPACE_DIR"/* 2>/dev/null || true
+# Clean artifacts from previous rounds
+"$ROOT/judge/clean.sh" >/dev/null || true
 
 # Select random problems
 export PROBLEMS_DIR
