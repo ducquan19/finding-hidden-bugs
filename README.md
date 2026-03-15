@@ -53,6 +53,26 @@ Note: output khi chạy test được lưu trong `state/run/<id>/` để workspa
 
 - `./judge/next.sh`
 
+## Workflow giống lúc thi
+
+### 1) Mở terminal kết quả chấm (bên phải)
+
+- CMD: `ttcli` và chọn `judge` (hoặc chạy thẳng `ttcli judge`)
+- PowerShell: `./ttcli.ps1 judge`
+- Git Bash: `python3 ttcli.py judge`
+
+Terminal này sẽ in mỗi submission thành 1 dòng: `timestamp verdict problem`.
+
+### 2) Mở terminal nộp bài (bên trái)
+
+- CMD: `ttcli` và chọn `submit` (hoặc chạy thẳng `ttcli repl`)
+
+`ttcli repl` sẽ tự **start round mới** mỗi lần chạy (gọi `./judge/start.sh`, script này tự clean workspace/state).
+
+Sau đó bạn chỉ cần nhập tên bài muốn nộp:
+
+`ttcli` sẽ enqueue request, còn terminal kết quả chấm sẽ tự bắt và gọi `./judge/submit.sh <pid>` để chấm.
+
 ## Cách thêm bài
 
 Để thêm bài mới, tạo folder `problems/pXX/` với:
