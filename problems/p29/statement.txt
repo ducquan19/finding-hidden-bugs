@@ -1,0 +1,1 @@
+Cho 1 xâu kí tự s, in ra số lượng các số xuất hiện trong s, với yêu cầu các số không được đứng cạnh nhau (tìm các vị trí s(i) chuyển từ 1 kí tự không phải kí tự số sang 1 kí tự số)

@@ -1,0 +1,9 @@
+Nhập vào một mảng a gồm n phần tử. In ra số lớn nhất trong mảng
+Dữ liệu vào gồm hai dòng, dòng đầu tiên chứa số n là số lượng phần tử trong mảng, dòng thứ hai chứa n số nguyên a(i) (1 < n <= 10^6, -10^9 <= a(i) <= 10^9)
+Dữ liệu ra gồm một dòng chứa hai số nguyên cách nhau bởi khoảng trắng, số thứ nhất là số lớn nhất, số thứ hai là số nhỏ nhất trong mảng
+Ví dụ:
+input:
+5
+1 2 3 4 5
+output:
+5 1

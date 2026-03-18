@@ -1,0 +1,1 @@
+Cho 2 số nguyên a và b, hãy viết chương trình tìm ước số chung lớn nhất của a, b (1 <= a, b <= 10^3)

@@ -1,0 +1,3 @@
+Nhập vào 1 xâu, chuẩn hóa để xóa các kí tự space thừa ra khỏi xâu s
+input: xâu s
+output: xâu s sau khi chuẩn hóa

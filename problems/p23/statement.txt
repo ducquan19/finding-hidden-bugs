@@ -1,0 +1,3 @@
+Bạn An trồng 2 cây bàng A và B. Mỗi năm cây A cao thêm gấp 3 lần, còn cây B cao thêm gấp 2 lần. Cho biết chiều cao ban đầu của 2 cây A và B. Hỏi sau bao nhiêu năm, cây A cao hơn cây B
+input: a, b lần lượt là chiều cao ban đầu của cây A và B
+output: số năm ít nhất để cây A cao hơn cây B

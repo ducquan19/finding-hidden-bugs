@@ -1,0 +1,3 @@
+Nhập vào 1 số nguyên n, hãy đếm xem n có bao nhiêu chữ số (1 <= |n| <= 10^9)
+Input: n
+Output: số chữ số của n

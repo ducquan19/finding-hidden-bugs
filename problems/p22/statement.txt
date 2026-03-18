@@ -1,0 +1,1 @@
+Nhập vào mảng a gồm n phần tử, in ra các số chẵn trong mảng

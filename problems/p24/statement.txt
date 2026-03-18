@@ -1,0 +1,3 @@
+Tính tổng các số nguyên dương là ước của a nhưng không phải ước của b
+input: 2 số a, b (1 <= a, b <= 10^18)
+output: tổng cần tìm

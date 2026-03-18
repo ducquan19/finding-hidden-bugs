@@ -1,0 +1,3 @@
+Cho 1 mảng số nguyên gồm n phần tử và 1 giá trị x. Yêu cầu đếm số lần xuất hiện của x trong mảng a
+Input: dòng đầu tiên là n và x, dòng thứ 2 là n số nguyên
+Output: số lần xuất hiện của x

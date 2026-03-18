@@ -1,0 +1,3 @@
+Nhập vào 1 số nguyên n, hãy đếm xem n có bao nhiêu ước là số chẵn (1 <= n <= 10^3)
+Input: số nguyên n
+Output: số ước số của n là số chẵn

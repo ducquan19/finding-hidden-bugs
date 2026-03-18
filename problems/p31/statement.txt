@@ -1,0 +1,3 @@
+Cho 1 mảng a gồm n số nguyên, in ra các cặp số bằng nhau trong mảng
+input: dòng thứ nhất là số n, dòng thứ hai là n số nguyên
+output: chỉ số của các cặp số bằng nhau trên từng dòng, không in các cặp trùng nhau, các cặp không trùng nhau là các cặp có ít nhất 1 chỉ số khác với cả hai chỉ số của cặp còn lại. Nếu không tồn tại cặp nào thì in -1

@@ -1,0 +1,3 @@
+Nhập vào 2 số nguyên a, b, kiểm tra nếu tích ab dương thì in ra 1, âm thì in ra -1, bằng 0 thì in 0
+input: a, b (|a|, |b| <= 10^3)
+output: kết quả
