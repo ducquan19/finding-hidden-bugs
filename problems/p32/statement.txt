@@ -1,0 +1,1 @@
+Cho 2 số nguyên a và b, hãy cho biết để biểu diễn tất cả các số nguyên trong đoạn [a, b] thì cần bao nhiêu số 5 (1 <= a <= b <= 10^9, b - a <= 10^6)

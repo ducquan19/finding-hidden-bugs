@@ -42,12 +42,24 @@ int main(int argc, char** argv) {
 		}
 
 		// Your code here
-		int n = rd(1, 1000);
-		fout << n << '\n';
-		for (int i = 0; i < n; ++i) {
-			int d = rd(1, 1000);
-			fout << d << " \n"[i == n - 1];
+		long long a, b, c;
+
+		if (t == 1) {
+			a = 10; b = 10; c = 5; // đã bằng nhau
 		}
+		else if (t == 2) {
+			a = 0; b = 1000000000; c = 1; // nhiều bước
+		}
+		else if (t == 3) {
+			a = 1000000000; b = 0; c = 1000000000; // 1 bước
+		}
+		else {
+			a = rdll(0, 1000000000);
+			b = rdll(0, 1000000000);
+			c = rdll(1, 1000000000);
+		}
+
+		fout << a << " " << b << " " << c << '\n';
 	}
 
 	return 0;

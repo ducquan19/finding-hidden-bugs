@@ -42,12 +42,24 @@ int main(int argc, char** argv) {
 		}
 
 		// Your code here
-		int n = rd(1, 1000);
-		fout << n << '\n';
-		for (int i = 0; i < n; ++i) {
-			int d = rd(1, 1000);
-			fout << d << " \n"[i == n - 1];
+		long long a, b;
+
+		if (t == 1) {
+			a = 1; b = 1;
 		}
+		else if (t == 2) {
+			a = 1; b = 1000000; // max range
+		}
+		else if (t == 3) {
+			a = 1000000000; b = 1000000000; // max value
+		}
+		else {
+			a = rdll(1, 1000000000);
+			long long len = rdll(0, 1000000);
+			b = min(1000000000LL, a + len);
+		}
+
+		fout << a << " " << b << '\n';
 	}
 
 	return 0;

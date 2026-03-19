@@ -10,7 +10,7 @@ int main() {
 
     int res = INT_MAX;
     for (int i = st; i <= en; ++i) {
-        res = min(res, abs(x1 - i) + abs(x2 - i), abs(x3 - i));
+        res = min(res, abs(x1 - i) + abs(x2 - i) + abs(x3 - i));
     }
 
     cout << res << '\n';

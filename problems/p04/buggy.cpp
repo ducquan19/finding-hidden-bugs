@@ -5,9 +5,9 @@ int main() {
     int a, b;
     cin >> a >> b;
 
-    int res = (a < b ? a : b);
-    while (a % res != 0 && b % res != 0) {
-        --res
+    int res = 1;
+    while (res % a != 0 || res % b != 0) {
+        --res;
     }
 
     cout << res << '\n';

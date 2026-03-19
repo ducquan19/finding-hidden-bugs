@@ -42,12 +42,8 @@ int main(int argc, char** argv) {
 		}
 
 		// Your code here
-		int n = rd(1, 1000);
+		int n = rd(3, 10000000);
 		fout << n << '\n';
-		for (int i = 0; i < n; ++i) {
-			int d = rd(1, 1000);
-			fout << d << " \n"[i == n - 1];
-		}
 	}
 
 	return 0;

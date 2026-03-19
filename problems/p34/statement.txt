@@ -1,0 +1,1 @@
+Nhập vào 2 số nguyên a, b, tìm ước chung lớn thứ hai của hai số a và b. Nếu không có ước lớn thứ hai thì in -1

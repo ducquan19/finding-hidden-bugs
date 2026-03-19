@@ -42,12 +42,10 @@ int main(int argc, char** argv) {
 		}
 
 		// Your code here
-		int n = rd(1, 1000);
-		fout << n << '\n';
-		for (int i = 0; i < n; ++i) {
-			int d = rd(1, 1000);
-			fout << d << " \n"[i == n - 1];
-		}
+		int x1 = rd(1, 100000000);
+		int x2 = rd(1, 100000000);
+		int x3 = rd(1, 100000000);
+		fout << x1 << ' ' << x2 << ' ' << x3 << '\n';
 	}
 
 	return 0;

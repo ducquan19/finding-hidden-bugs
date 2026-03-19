@@ -1,0 +1,3 @@
+2 thùng chứa nước A và B, thùng A có a lít nước, thùng B có b lít nước. Bạn có 1 cái cốc có thể chứa c lít nước. Mỗi lần bạn có thể dùng cái cốc đó để múc tối đa c lít nước từ 1 trong 2 thùng. Hỏi xem cần ít nhất bao nhiêu lần múc nước để làm cho cả 2 thùng chứa lượng nước bằng nhau?
+input: a, b, c
+output: số lần xúc ít nhất

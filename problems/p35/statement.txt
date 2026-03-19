@@ -1,0 +1,1 @@
+Nhập vào số nguyên (3 <= n <= 10^7). Hãy đếm số lượng cặp gồm 2 số nguyên a và b sao cho a + b <= n và a < b
