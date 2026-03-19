@@ -7,7 +7,7 @@ Usage:
   ttcli.py repl
 
 Design:
-- Submit side writes JSON request files into state/tt_queue.
+- Submit side writes JSON request files into an OS temp folder.
 - Judge side monitors that queue, runs ./judge/submit.sh <pid> and prints results.
 
 This intentionally keeps the UX minimal and close to the contest description.
@@ -22,6 +22,7 @@ import random
 import re
 import subprocess
 import sys
+import tempfile
 import time
 from dataclasses import dataclass
 from datetime import datetime
@@ -30,13 +31,24 @@ from typing import Iterable, Optional
 
 
 ROOT = Path(__file__).resolve().parent
-STATE_DIR = ROOT / "state"
-QUEUE_DIR = STATE_DIR / "tt_queue"
-PROCESSING_DIR = STATE_DIR / "tt_processing"
-DONE_DIR = STATE_DIR / "tt_done"
-ACK_DIR = STATE_DIR / "tt_ack"
-RESULTS_LOG = STATE_DIR / "tt_results.log"
-STAGE_MANIFEST = STATE_DIR / "ttcli_stage.json"
+
+
+def _default_ttcli_dir() -> Path:
+    # Keep repo clean: store ttcli IPC + logs in OS temp directory.
+    # Can be overridden with TTCLI_DIR.
+    override = os.environ.get("TTCLI_DIR")
+    if override:
+        return Path(override).expanduser()
+    return Path(tempfile.gettempdir()) / "finding-hidden-bugs" / "ttcli"
+
+
+TTCLI_DIR = _default_ttcli_dir()
+QUEUE_DIR = TTCLI_DIR / "tt_queue"
+PROCESSING_DIR = TTCLI_DIR / "tt_processing"
+DONE_DIR = TTCLI_DIR / "tt_done"
+ACK_DIR = TTCLI_DIR / "tt_ack"
+RESULTS_LOG = TTCLI_DIR / "tt_results.log"
+STAGE_MANIFEST = TTCLI_DIR / "ttcli_stage.json"
 
 
 _PID_RE = re.compile(r"^p(\d{1,3})$", re.IGNORECASE)
@@ -64,7 +76,7 @@ def _copy_file_atomic(src: Path, dst: Path) -> None:
 def _cleanup_staged_root_files() -> None:
     """Remove staged root-level pXX.cpp files created by ttcli.
 
-    Safety: only deletes files recorded in state/ttcli_stage.json.
+    Safety: only deletes files recorded in ttcli's manifest (stored in temp).
     """
     try:
         if not STAGE_MANIFEST.exists():
@@ -81,8 +93,8 @@ def _cleanup_staged_root_files() -> None:
     for name in files:
         if not isinstance(name, str):
             continue
-        # Only allow deleting pXX.cpp at repo root.
-        if not re.match(r"^p\d{2,3}\.cpp$", name, re.IGNORECASE):
+        # Only allow deleting pN.cpp at repo root.
+        if not re.match(r"^p\d{1,3}\.cpp$", name, re.IGNORECASE):
             continue
         p = ROOT / name
         try:
@@ -95,6 +107,57 @@ def _cleanup_staged_root_files() -> None:
         STAGE_MANIFEST.unlink()
     except OSError:
         pass
+
+
+def _extract_loaded_pids_from_start_output(out: str) -> list[str]:
+    # start.sh prints:
+    #   Problems loaded into ...:
+    #     - p01
+    #     - p17
+    pids: list[str] = []
+    seen: set[str] = set()
+    for line in out.splitlines():
+        m = re.match(r"^\s*-\s*(p\d{1,3})\s*$", line.strip(), re.IGNORECASE)
+        if not m:
+            continue
+        pid = normalize_problem_id(m.group(1))
+        if pid not in seen:
+            pids.append(pid)
+            seen.add(pid)
+    return pids
+
+
+def _read_staged_problem_ids() -> list[str]:
+    try:
+        if not STAGE_MANIFEST.exists():
+            return []
+        data = json.loads(STAGE_MANIFEST.read_text(encoding="utf-8"))
+    except Exception:
+        return []
+
+    probs = data.get("problems")
+    if not isinstance(probs, list):
+        return []
+    out: list[str] = []
+    for p in probs:
+        if isinstance(p, str) and p.strip():
+            out.append(p.strip().lower())
+    return out
+
+
+def _read_generated_root_problem_ids() -> list[str]:
+    # Fallback when manifest is missing: find root p*.cpp with the statement marker.
+    out: list[str] = []
+    for p in sorted(ROOT.glob("p*.cpp")):
+        try:
+            head = p.read_text(encoding="utf-8", errors="replace")[:200]
+        except Exception:
+            continue
+        if "// ===== STATEMENT (p" not in head:
+            continue
+        if re.match(r"^p\d{1,3}$", p.stem, re.IGNORECASE):
+            out.append(p.stem.lower())
+    return out
 
 
 def _stage_round_sources_to_root(pids: Iterable[str]) -> int:
@@ -163,8 +226,11 @@ def _fmt_local_time_ampm(ts: Optional[float] = None) -> str:
 
 
 def _read_active_round_problem_ids(*, only_pending: bool) -> list[str]:
-    """Return problem ids from state/round.json (e.g., ['p01','p02'])."""
-    round_path = STATE_DIR / "round.json"
+    """Legacy helper: return problem ids from state/round.json.
+
+    The repo is now stateless (no state/round.json), so this will usually return [].
+    """
+    round_path = ROOT / "state" / "round.json"
     if not round_path.exists():
         return []
     try:
@@ -198,6 +264,20 @@ def _read_workspace_problem_ids() -> list[str]:
         if re.match(r"^p\d{2,3}$", name, re.IGNORECASE):
             ids.append(name.lower())
     return ids
+
+
+def _format_numbered_problem_list(pids: list[str]) -> str:
+    # Format: 1:p1 2:p2 3:p3 ... (compact, easy to type-reference visually)
+    return " ".join(
+        f"{_short_pid_for_display(pid)}" for i, pid in enumerate(pids, start=1)
+    )
+
+
+def _short_pid_for_display(pid: str) -> str:
+    m = _PID_RE.match(pid.strip())
+    if not m:
+        return pid.strip()
+    return f"p{int(m.group(1))}"
 
 
 def _supports_color() -> bool:
@@ -576,7 +656,8 @@ def judge_loop(poll_ms: int) -> int:
 
 def submit_once(problem_tokens: list[str]) -> int:
     req = enqueue_submit(problem_tokens)
-    print(f"Queued {len(req.problems)} problem(s): {' '.join(req.problems)}")
+    pretty = " ".join(_short_pid_for_display(p) for p in req.problems)
+    print(f"Queued {len(req.problems)} problem(s): {pretty}")
     return 0
 
 
@@ -593,12 +674,28 @@ def repl() -> int:
         # Keep it short; the judge script prints the chosen problems.
         print("✔ Metadata are fetched.")
 
-        # Stage workspace sources into repo root so Ctrl+P finds them easily.
-        pids = _read_active_round_problem_ids(only_pending=False)
+        # Track the loaded problems from start.sh output so we can show them numbered.
+        pids = _extract_loaded_pids_from_start_output(out)
+        if not pids:
+            pids = _read_generated_root_problem_ids()
         if pids:
-            staged_n = _stage_round_sources_to_root(pids)
-            if staged_n:
-                print("✔ Problems are loaded into repo root.")
+            try:
+                STAGE_MANIFEST.write_text(
+                    json.dumps(
+                        {
+                            "files": [
+                                f"{_short_pid_for_display(pid)}.cpp" for pid in pids
+                            ],
+                            "problems": pids,
+                        },
+                        ensure_ascii=False,
+                        indent=2,
+                    ),
+                    encoding="utf-8",
+                )
+            except OSError:
+                pass
+            print(_format_numbered_problem_list(pids))
     else:
         # Still allow REPL to run, but submissions will likely fail.
         print("✖ Failed to start a new round.")
@@ -609,9 +706,11 @@ def repl() -> int:
         try:
             avail_all = _read_active_round_problem_ids(only_pending=False)
             if not avail_all:
-                avail_all = _read_workspace_problem_ids()
+                avail_all = (
+                    _read_staged_problem_ids() or _read_generated_root_problem_ids()
+                )
             if avail_all:
-                pretty = ", ".join(avail_all)
+                pretty = _format_numbered_problem_list(avail_all)
                 print(f"Available problems: {pretty}")
             print("✔ Enter problem names separated by at least one space:")
             line = input("$ ")
@@ -636,27 +735,37 @@ def repl() -> int:
 
         parts = s.split()
         try:
-            # If user edits the staged root files, sync them back before enqueuing.
-            for token in parts:
-                _sync_root_to_workspace_if_newer(token)
             req = enqueue_submit(parts)
             # Show per-problem submit status, then allow next input.
             for pid in req.problems:
-                print(f"Submitting {pid} at {_fmt_local_time_ampm()}...")
+                print(
+                    f"Submitting {_short_pid_for_display(pid)} at {_fmt_local_time_ampm()}..."
+                )
 
-            # Wait for judge to ack. If judge isn't running, this will time out.
-            acks = _wait_for_acks(req.request_id, req.problems, timeout_sec=10.0)
+            # Wait for judge to ack. If judge isn't running or is busy, this may time out.
+            # Note: timing out here does NOT mean the request was lost; the judge may still
+            # process it later and print results in the judge terminal.
+            ack_timeout_sec = float(os.environ.get("TTCLI_ACK_TIMEOUT_SEC", "60"))
+            acks = _wait_for_acks(
+                req.request_id, req.problems, timeout_sec=ack_timeout_sec
+            )
             for pid in req.problems:
                 ack = acks.get(pid)
                 if not ack:
-                    print(f"✖ Failed to submit {pid}.")
+                    print(
+                        f"⌛ No response from judge yet for {_short_pid_for_display(pid)} (timeout after {ack_timeout_sec:.0f}s)."
+                    )
+                    print("   Check the judge terminal; it may still be grading.")
                     continue
                 # Consider ERR as a failed submission (judge couldn't run).
                 verdict = str(ack.get("verdict") or "").upper()
                 if verdict == "ERR":
-                    print(f"✖ Failed to submit {pid}.")
+                    print(
+                        f"✖ Judge error while submitting {_short_pid_for_display(pid)}."
+                    )
+                    print(f"   Open the judge terminal output log in: {DONE_DIR}")
                 else:
-                    print(f"✔ Submitted {pid}.")
+                    print(f"✔ Submitted {_short_pid_for_display(pid)}.")
         except Exception as e:
             print(f"Error: {e}")
 
@@ -695,16 +804,16 @@ def main(argv: list[str]) -> int:
             return 0
 
     if args.cmd == "submit":
-        # If user edits staged root files, sync them back before enqueuing.
-        for token in args.problems:
-            _sync_root_to_workspace_if_newer(token)
         req = enqueue_submit(args.problems)
         if not args.wait:
-            print(f"Queued {len(req.problems)} problem(s): {' '.join(req.problems)}")
+            pretty = " ".join(_short_pid_for_display(p) for p in req.problems)
+            print(f"Queued {len(req.problems)} problem(s): {pretty}")
             return 0
 
         for pid in req.problems:
-            print(f"Submitting {pid} at {_fmt_local_time_ampm()}...")
+            print(
+                f"Submitting {_short_pid_for_display(pid)} at {_fmt_local_time_ampm()}..."
+            )
         acks = _wait_for_acks(
             req.request_id, req.problems, timeout_sec=float(args.timeout_sec)
         )
@@ -712,15 +821,17 @@ def main(argv: list[str]) -> int:
         for pid in req.problems:
             ack = acks.get(pid)
             if not ack:
-                print(f"✖ Failed to submit {pid}.")
+                print(
+                    f"⌛ No response from judge yet for {_short_pid_for_display(pid)} (timeout after {float(args.timeout_sec):.0f}s)."
+                )
                 ok = False
                 continue
             verdict = str(ack.get("verdict") or "").upper()
             if verdict == "ERR":
-                print(f"✖ Failed to submit {pid}.")
+                print(f"✖ Judge error while submitting {_short_pid_for_display(pid)}.")
                 ok = False
             else:
-                print(f"✔ Submitted {pid}.")
+                print(f"✔ Submitted {_short_pid_for_display(pid)}.")
         return 0 if ok else 3
 
     if args.cmd == "repl":
