@@ -1,26 +1,33 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-# judge/submit.sh
-#
-# Logic:
-#   compile workspace/<pid>/main.cpp
-#   for each problems/<pid>/tests/*.in:
-#       run program, save output to workspace/<pid>/tests/<name>.out
-#       compare to problems/<pid>/tests/<name>.out
-#   if all correct: mark solved, +10
-#   else: mark failed
-#   if all problems finished: write history/<timestamp>.json and clear state/round.json
+# judge/submit.sh <problemId>
+# Stateless checker:
+#   - compile <repo_root>/<id>.cpp
+#   - run all problems/<id>/tests/*.in
+#   - compare output to problems/<id>/tests/*.out (byte-for-byte)
+# Prints one of:
+#   ACCEPTED, WRONG ANSWER, COMPILE ERROR
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-STATE_PATH="$ROOT/state/round.json"
 PROBLEMS_DIR="$ROOT/problems"
-WORKSPACE_DIR="$ROOT/workspace"
-STATE_DIR="$ROOT/state"
-HISTORY_DIR="$ROOT/history"
+BUILD_ROOT="$ROOT/build/judge"
+MAP_FILE="$BUILD_ROOT/round_map.json"
 
-export STATE_PATH
-export HISTORY_DIR
+PID="${1:-}"
+if [[ -z "$PID" ]]; then
+  echo "Usage: ./judge/submit.sh <problemId>  (e.g. ./judge/submit.sh p1)" >&2
+  exit 2
+fi
+
+if [[ ! "$PID" =~ ^[pP]([0-9]{1,3})$ ]]; then
+  echo "Invalid problem id: $PID" >&2
+  exit 2
+fi
+
+N="${BASH_REMATCH[1]}"
+NUM=$((10#$N))
+PID_SHORT="p$NUM"
 
 PYTHON_BIN=""
 PYTHON_ARGS=()
@@ -33,83 +40,52 @@ else
   PYTHON_BIN=python
 fi
 
-if [[ ! -f "$STATE_PATH" ]]; then
-  echo "No active round. Run ./judge/start.sh first." >&2
-  exit 1
-fi
+# Default mapping: p1 -> problems/p01, etc.
+PID_NORM=$(printf 'p%02d' "$NUM")
 
-# When invoked by ttcli, we want a contest-like workflow:
-# - Allow submitting multiple times in the same round
-# - Do not finalize the round, do not delete state/round.json
-# - Keep history minimal (ttcli logs timestamp/verdict/problem separately)
-TTCLI_MODE="${TTCLI:-0}"
-
-TARGET_ID="${1:-}"
-export TARGET_ID
-
-# Select target problem (optional) and get its index
-SEL="$($PYTHON_BIN "${PYTHON_ARGS[@]}" - <<'PY'
+# Round mapping: if round_map.json exists and contains PID_SHORT,
+# use that as the actual problem id for tests/build folders.
+if [[ -f "$MAP_FILE" ]]; then
+  RESOLVED="$(MAP_FILE="$MAP_FILE" PID_SHORT="$PID_SHORT" \
+    "$PYTHON_BIN" "${PYTHON_ARGS[@]}" - <<'PY'
 import json, os
+from pathlib import Path
 
-path = os.environ['STATE_PATH']
-target = os.environ.get('TARGET_ID') or ''
+mp = Path(os.environ["MAP_FILE"])
+key = os.environ["PID_SHORT"].lower()
+try:
+    data = json.loads(mp.read_text(encoding="utf-8"))
+except Exception:
+    data = {}
 
-with open(path,'r',encoding='utf-8') as f:
-  data=json.load(f)
-
-problems=data.get('problems',[])
-if not problems:
-  raise SystemExit('no problems in round')
-
-if target:
-  idx = next((i for i, p in enumerate(problems) if p.get('id') == target), None)
-  if idx is None:
-    raise SystemExit(f'problem not in round: {target}')
-  data['current_problem'] = idx
-  with open(path,'w',encoding='utf-8') as f:
-    json.dump(data,f,ensure_ascii=False,indent=2)
-else:
-  idx=int(data.get('current_problem',0))
-  if idx<0 or idx>=len(problems):
-    raise SystemExit('current_problem out of range')
-
-pid=problems[idx].get('id','')
-print(f"{pid} {idx}")
+val = data.get(key)
+if isinstance(val, str) and val.strip():
+    print(val.strip())
 PY
-)"
-
-PID="${SEL%% *}"
-PROBLEM_INDEX="${SEL##* }"
-export PID
-export PROBLEM_INDEX
-
-if [[ -z "$PID" ]]; then
-  echo "Cannot determine current problem." >&2
-  exit 1
+  )"
+  if [[ -n "$RESOLVED" ]]; then
+    PID_NORM="$RESOLVED"
+  fi
 fi
 
-if [[ -z "$PROBLEM_INDEX" ]]; then
-  echo "Cannot determine problem index." >&2
-  exit 1
-fi
-
-SRC="$WORKSPACE_DIR/$PID.cpp"
+SRC="$ROOT/$PID_SHORT.cpp"
 if [[ ! -f "$SRC" ]]; then
   echo "File not found: $SRC" >&2
   exit 1
 fi
 
-TESTS_DIR="$PROBLEMS_DIR/$PID/tests"
+TESTS_DIR="$PROBLEMS_DIR/$PID_NORM/tests"
 if [[ ! -d "$TESTS_DIR" ]]; then
   echo "Tests not found: $TESTS_DIR" >&2
-  echo "Run: ./judge/gen_tests.sh $PID" >&2
+  echo "Run: ./judge/gen_tests.sh $PID_NORM" >&2
   exit 1
 fi
 
-RUN_DIR="$STATE_DIR/run/$PID"
-mkdir -p "$RUN_DIR" "$STATE_DIR/build/$PID" "$HISTORY_DIR"
+BUILD_DIR="$BUILD_ROOT/$PID_NORM"
+RUN_DIR="$BUILD_DIR/run"
+mkdir -p "$BUILD_DIR" "$RUN_DIR"
 
-EXE="$STATE_DIR/build/$PID/submission.exe"
+EXE="$BUILD_DIR/submission.exe"
 
 set +e
 COMPILE_OUT=$(g++ -std=c++17 -O2 -pipe -s "$SRC" -o "$EXE" 2>&1)
@@ -117,91 +93,14 @@ RC=$?
 set -e
 
 if [[ $RC -ne 0 ]]; then
-  echo "COMPILE ERROR (score 0)"
+  echo "COMPILE ERROR"
   echo "$COMPILE_OUT"
-  if [[ "$TTCLI_MODE" != "1" ]]; then
-  $PYTHON_BIN "${PYTHON_ARGS[@]}" - <<'PY'
-import json, os, time
-path=os.environ['STATE_PATH']
-pid=os.environ['PID']
-idx=int(os.environ['PROBLEM_INDEX'])
-now=int(time.time())
-with open(path,'r',encoding='utf-8') as f:
-  data=json.load(f)
-p=data['problems'][idx]
-if p.get('id')==pid:
-  if p.get('start_time') is None:
-    p['start_time']=now
-  p['finish_time']=now
-  p['status']='failed'
-with open(path,'w',encoding='utf-8') as f:
-  json.dump(data,f,ensure_ascii=False,indent=2)
-PY
-
-  # If all finished -> write history and clear round.json
-  $PYTHON_BIN "${PYTHON_ARGS[@]}" - <<'PY'
-import json, os, time
-state_path=os.environ['STATE_PATH']
-history_dir=os.environ['HISTORY_DIR']
-
-def fmt(sec: int) -> str:
-  sec = max(0, int(sec))
-  m, s = divmod(sec, 60)
-  return f"{m:02d}:{s:02d}"
-
-with open(state_path,'r',encoding='utf-8') as f:
-  data=json.load(f)
-
-problems=data.get('problems',[])
-all_done=all(p.get('status') in ('solved','failed') for p in problems)
-
-score=sum(10 for p in problems if p.get('status')=='solved')
-print(f"Score: {score}")
-
-if not all_done:
-  raise SystemExit(0)
-
-start_time=int(data.get('start_time') or int(time.time()))
-end_time=int(time.time())
-
-total_sec = end_time - start_time
-
-hist={
-  'start_time': start_time,
-  'end_time': end_time,
-  'total_time_sec': total_sec,
-  'total_time': fmt(total_sec),
-  'problems': []
-}
-
-for p in problems:
-  item={'id': p.get('id'), 'status': p.get('status')}
-  if p.get('status')=='solved' and p.get('start_time') is not None and p.get('finish_time') is not None:
-    tsec=int(p['finish_time'])-int(p['start_time'])
-    item['time_sec']=tsec
-    item['time']=fmt(tsec)
-  hist['problems'].append(item)
-
-os.makedirs(history_dir, exist_ok=True)
-name=time.strftime('%Y-%m-%d-%H-%M', time.localtime(end_time)) + '.json'
-out_path=os.path.join(history_dir, name)
-with open(out_path, 'w', encoding='utf-8') as f:
-  json.dump(hist, f, ensure_ascii=False, indent=2)
-
-try:
-  os.remove(state_path)
-except FileNotFoundError:
-  pass
-
-print(f"Saved history: {out_path}")
-PY
-  fi
   exit 0
 fi
 
-# Run tests
 FIRST_WRONG=""
 TOTAL=0
+
 for in_file in "$TESTS_DIR"/*.in; do
   if [[ ! -f "$in_file" ]]; then
     continue
@@ -215,6 +114,7 @@ for in_file in "$TESTS_DIR"/*.in; do
   "$EXE" < "$in_file" > "$actual"
   RUN_RC=$?
   set -e
+
   if [[ $RUN_RC -ne 0 ]]; then
     FIRST_WRONG="$(basename "$in_file") (runtime error)"
     break
@@ -244,102 +144,8 @@ if [[ "$TOTAL" -eq 0 ]]; then
   exit 1
 fi
 
-NOW_EPOCH="$($PYTHON_BIN "${PYTHON_ARGS[@]}" - <<'PY'
-import time
-print(int(time.time()))
-PY
-)"
-
 if [[ -z "$FIRST_WRONG" ]]; then
-  echo "ACCEPTED (score +10)"
-  STATUS="solved"
+  echo "ACCEPTED"
 else
-  echo "WRONG ANSWER (score 0) - first failing test: $FIRST_WRONG"
-  STATUS="failed"
-fi
-
-export PID
-export STATUS
-export NOW_EPOCH
-
-# Update round.json for this problem (skip in ttcli mode to allow resubmits)
-if [[ "$TTCLI_MODE" != "1" ]]; then
-$PYTHON_BIN "${PYTHON_ARGS[@]}" - <<'PY'
-import json, os
-path=os.environ['STATE_PATH']
-pid=os.environ['PID']
-idx=int(os.environ['PROBLEM_INDEX'])
-status=os.environ['STATUS']
-now=int(os.environ['NOW_EPOCH'])
-with open(path,'r',encoding='utf-8') as f:
-  data=json.load(f)
-p=data['problems'][idx]
-if p.get('id')==pid:
-  if p.get('start_time') is None:
-    p['start_time']=now
-  p['finish_time']=now
-  p['status']=status
-with open(path,'w',encoding='utf-8') as f:
-  json.dump(data,f,ensure_ascii=False,indent=2)
-PY
-
-# If all finished -> write history and clear round.json
-$PYTHON_BIN "${PYTHON_ARGS[@]}" - <<'PY'
-import json, os, time
-state_path=os.environ['STATE_PATH']
-history_dir=os.environ['HISTORY_DIR']
-
-def fmt(sec: int) -> str:
-  sec = max(0, int(sec))
-  m, s = divmod(sec, 60)
-  return f"{m:02d}:{s:02d}"
-
-with open(state_path,'r',encoding='utf-8') as f:
-  data=json.load(f)
-
-problems=data.get('problems',[])
-all_done=all(p.get('status') in ('solved','failed') for p in problems)
-
-# Print score (solved * 10)
-score=sum(10 for p in problems if p.get('status')=='solved')
-print(f"Score: {score}")
-
-if not all_done:
-  raise SystemExit(0)
-
-start_time=int(data.get('start_time') or int(time.time()))
-end_time=int(time.time())
-
-total_sec = end_time - start_time
-
-hist={
-  'start_time': start_time,
-  'end_time': end_time,
-  'total_time_sec': total_sec,
-  'total_time': fmt(total_sec),
-  'problems': []
-}
-
-for p in problems:
-  item={'id': p.get('id'), 'status': p.get('status')}
-  if p.get('status')=='solved' and p.get('start_time') is not None and p.get('finish_time') is not None:
-    tsec=int(p['finish_time'])-int(p['start_time'])
-    item['time_sec']=tsec
-    item['time']=fmt(tsec)
-  hist['problems'].append(item)
-
-os.makedirs(history_dir, exist_ok=True)
-name=time.strftime('%Y-%m-%d-%H-%M', time.localtime(end_time)) + '.json'
-out_path=os.path.join(history_dir, name)
-with open(out_path, 'w', encoding='utf-8') as f:
-  json.dump(hist, f, ensure_ascii=False, indent=2)
-
-# Clear active round
-try:
-  os.remove(state_path)
-except FileNotFoundError:
-  pass
-
-print(f"Saved history: {out_path}")
-PY
+  echo "WRONG ANSWER - first failing test: $FIRST_WRONG"
 fi
