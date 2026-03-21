@@ -12,6 +12,6 @@ int main() {
 
     sort(a, a + n, greater<int>());
 
-    cout << a[n - 1] << ' ' << a[0] << '\n';
+    cout << a[0] << ' ' << a[n - 1] << '\n';
     return 0;
 }

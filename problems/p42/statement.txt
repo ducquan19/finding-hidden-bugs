@@ -1,0 +1,15 @@
+Cho hai số nguyên x và y. Hãy in ra số nhỏ hơn trước, rồi đến số lớn hơn
+Input:
+- Dòng đầu tiên là số lượng bộ test t (1 <= t <= 100)
+- t dòng tiếp theo, mỗi dòng chứa hai số nguyên x và y
+Output:
+- Với mỗi bộ test, in ra số nhỏ nhất rồi đến số lớn nhất
+Input mẫu:
+3
+1 9
+8 4
+3 3
+Output mẫu:
+1 9
+4 8
+3 3

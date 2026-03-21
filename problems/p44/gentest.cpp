@@ -1,0 +1,61 @@
+#include <bits/stdc++.h>
+using namespace std;
+
+#include <filesystem>
+
+static string two(int x) {
+    string s = to_string(x);
+    if ((int)s.size() < 2) s = string(2 - (int)s.size(), '0') + s;
+    return s;
+}
+
+int main(int argc, char** argv) {
+    ios::sync_with_stdio(false);
+    cin.tie(nullptr);
+
+    if (argc < 4) {
+        cerr << "Usage: gentest <tests_dir> <seed> <num_tests>\n";
+        return 2;
+    }
+
+    const string testsDir = argv[1];
+    const unsigned seed = (unsigned)stoull(argv[2]);
+    const int numTests = max(1, stoi(argv[3]));
+
+    mt19937 rnd(seed);
+    auto rd = [&](int l, int r) {
+        return uniform_int_distribution<int>(l, r)(rnd);
+    };
+
+    auto rand_string = [&](int len) {
+        string s;
+        for (int i = 0; i < len; ++i)
+            s += char('a' + rd(0, 25));
+        return s;
+    };
+
+    std::filesystem::create_directories(std::filesystem::path(testsDir));
+
+    for (int t = 1; t <= numTests; ++t) {
+        const string path = testsDir + "/" + two(t) + ".in";
+        ofstream fout(path);
+        if (!fout) {
+            cerr << "Cannot write: " << path << "\n";
+            return 3;
+        }
+
+        int T = rd(1, 100);
+        fout << T << '\n';
+
+        while (T--) {
+            // mỗi chuỗi độ dài 1 → 10
+            string a = rand_string(rd(1, 10));
+            string b = rand_string(rd(1, 10));
+            string c = rand_string(rd(1, 10));
+
+            fout << a << " " << b << " " << c << '\n';
+        }
+    }
+
+    return 0;
+}

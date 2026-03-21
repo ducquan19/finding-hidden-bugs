@@ -1,0 +1,16 @@
+Cho 3 chuỗi ký tự, hãy lấy chữ cái đầu tiên của mỗi chuỗi và ghép chúng thành 1 từ
+Input:
+- Dòng đầu tiên là số lượng bộ test t (1 <= t <= 100)
+- t dòng tiếp theo, mỗi dòng chứa 3 chuỗi ký tự cách nhau bởi dấu cách, mỗi chuỗi có độ dài tối đa 10 kí tự và chỉ gồm các chữ cái latin in thường.
+Output:
+- Với mỗi bộ test, in ra chuỗi kết quả gồm 3 chữ cái đầu tiên ghép lại
+Input mẫu:
+3
+noi chung la
+oh my god
+toi qua gia
+Output mẫu:
+ncl
+omg
+tqg
+

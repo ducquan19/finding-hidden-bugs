@@ -1,0 +1,22 @@
+Cho một mảng số nguyên và một chuỗi ký tự cùng độ dài, hãy kiểm tra xem có thể ánh xạ mỗi giá trị trong mảng sang đúng một ký tự duy nhất hay không.
+Input:
+- Dòng đầu tiên là số nguyên t (1 <= t <= 10⁴) — số lượng test.
+Với mỗi test:
+- Dòng đầu tiên là số nguyên n (1 <= n <= 50).
+- Dòng thứ hai gồm n số nguyên a[i] (0 <= a[i] < 50).
+- Dòng thứ ba là chuỗi s có độ dài n, chỉ gồm các ký tự chữ cái.
+Output:
+Với mỗi test, in ra:
+- "YES" nếu tồn tại ánh xạ từ các giá trị trong mảng a sang ký tự trong s mà mỗi giá trị chỉ ánh xạ tới đúng một ký tự.
+- "NO" nếu tồn tại mâu thuẫn.
+Input mẫu:
+2
+5
+1 2 1 3 2
+abacb
+3
+1 2 1
+abc
+Output mẫu:
+YES
+NO
